@@ -10,12 +10,9 @@ contract HelloWorld {
     }
 
     // return a string
-    function greet() public pure returns (string memory) {
-        return "Hello, world!";
-    }
-
-    function getAddr() public view returns (address) {
-        return owner;
+    function greet() public returns (string memory) {
+        if (msg.sender == owner) return "Hello, world!";
+        else return "Oops!";
     }
 
     // recover the funds of the contract

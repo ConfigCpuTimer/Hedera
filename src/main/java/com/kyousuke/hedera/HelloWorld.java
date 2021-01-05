@@ -25,6 +25,25 @@ public class HelloWorld {
     private static final String HEDERA_NETWORK = Dotenv.load().get("HEDERA_NETWORK");
     private static final String CONFIG_FILE = Dotenv.load().get("CONFIG_FILE");
 
+    public static Client createNewClient(Client client) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException {
+        PrivateKey privateKey = PrivateKey.generate();
+        PublicKey publicKey = privateKey.getPublicKey();
+
+        AccountId accountId = new AccountCreateTransaction()
+                .setKey(publicKey)
+                .setInitialBalance(new Hbar(1000))
+                .execute(client)
+                .getReceipt(client)
+                .accountId;
+
+        Client newClient = Client.forTestnet().setOperator(Objects.requireNonNull(accountId), privateKey);
+
+        Hbar accountBalance = new AccountBalanceQuery().setAccountId(accountId).execute(newClient).hbars;
+        System.out.println(accountBalance);
+
+        return newClient;
+    }
+
     public static void main(String[] args) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException, IOException {
         ClassLoader cl = HelloWorld.class.getClassLoader();
 
@@ -59,11 +78,12 @@ public class HelloWorld {
             }
         }
 
-        // Client newClient = Client.forTestnet();
-
         // Defaults the operator account ID and key such that all generated transactions will be paid for
         // by this account and be signed by this key
         client.setOperator(OPERATOR_ID, OPERATOR_KEY);
+
+        Hbar hbar = new AccountBalanceQuery().setAccountId(OPERATOR_ID).execute(client).hbars;
+        System.out.println("Operator account balance: " + hbar);
 
         TransactionResponse fileTxResponse = new FileCreateTransaction()
                 // Use the same key as the operator to "own" this file
@@ -94,7 +114,7 @@ public class HelloWorld {
         System.out.println("new contract ID: " + contractId);
 
         ContractFunctionResult contractFunctionResult = new ContractCallQuery()
-                .setGas(600)
+                .setGas(6000)
                 .setContractId(contractId)
                 .setFunction("greet")
                 .setMaxQueryPayment(new Hbar(1))
@@ -105,8 +125,18 @@ public class HelloWorld {
             return;
         }
 
-
         System.out.println("Contract message: " + contractFunctionResult.getString(0));
+
+        Client newClient = createNewClient(client);
+
+        ContractFunctionResult newContractFunctionResult = new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("greet")
+                .setMaxQueryPayment(new Hbar(1))
+                .execute(newClient);
+
+        System.out.println(newContractFunctionResult.getString(0));
 
         // Delete the contract
         TransactionReceipt contractDeleteResult = new ContractDeleteTransaction()
