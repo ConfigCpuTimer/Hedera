@@ -31,7 +31,7 @@ public class HelloWorld {
 
         AccountId accountId = new AccountCreateTransaction()
                 .setKey(publicKey)
-                .setInitialBalance(new Hbar(1000))
+                .setInitialBalance(new Hbar(100))
                 .execute(client)
                 .getReceipt(client)
                 .accountId;
