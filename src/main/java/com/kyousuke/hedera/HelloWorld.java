@@ -51,8 +51,8 @@ public class HelloWorld {
 
         JsonObject jsonObject;
 
-        try (InputStream jsonStream = cl.getResourceAsStream("hello_world.json")) {
-            if (jsonStream == null) {
+        try(InputStream jsonStream = cl.getResourceAsStream("hello_world.json")) {
+            if(jsonStream == null) {
                 throw new RuntimeException("Failed to get .json file");
             }
 
@@ -68,12 +68,12 @@ public class HelloWorld {
 
         Client client;
 
-        if (HEDERA_NETWORK != null && HEDERA_NETWORK.equals("previewnet")) {
+        if(HEDERA_NETWORK != null && HEDERA_NETWORK.equals("previewnet")) {
             client = Client.forPreviewnet();
         } else {
             try {
                 client = Client.fromConfigFile(CONFIG_FILE != null ? CONFIG_FILE : "");
-            } catch (Exception e) {
+            } catch(Exception e) {
                 client = Client.forTestnet();
             }
         }
@@ -120,12 +120,13 @@ public class HelloWorld {
                 .setMaxQueryPayment(new Hbar(1))
                 .execute(client);
 
-        if (contractFunctionResult.errorMessage != null) {
+        if(contractFunctionResult.errorMessage != null) {
             System.out.println("Error calling contract: " + contractFunctionResult.errorMessage);
             return;
         }
 
         System.out.println("Contract message: " + contractFunctionResult.getString(0));
+
 
         Client newClient = createNewClient(client);
 
@@ -145,7 +146,7 @@ public class HelloWorld {
                 .execute(client)
                 .getReceipt(client);
 
-        if (contractDeleteResult.status != Status.SUCCESS) {
+        if(contractDeleteResult.status != Status.SUCCESS) {
             System.out.println("Error deleting contract: " + contractDeleteResult.status);
         } else {
             System.out.println("Contract successfully deleted.");
