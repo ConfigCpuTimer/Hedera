@@ -16,19 +16,29 @@ contract DoubleAuction {
     }
 
     struct Clearing {
+        // int clearingTime;
         int clearingQuantity;
         int clearingPrice;
         int clearingType; // marginal_seller = 1, marginal_buyer = 2, marginal_price = 3, exact = 4, failure = 5, null = 6
     }
 
+    enum ClearType {
+        zero,
+        marginal_seller,
+        marginal_buyer,
+        marginal_price,
+        exact,
+        failure,
+        null
+    }
 
     constructor() public{
         market = msg.sender;
-        blockCleared = block.number;
+        blockCleared = block.number; //TODO
         clearing.clearingPrice = 0;
         clearing.clearingQuantity = 0;
         clearing.clearingType = 0;
-
+        clearing.clearingTime = 0;
     }
 
 
@@ -43,8 +53,8 @@ contract DoubleAuction {
         marketClearing();
     }
 
-    function generationBid(int _quantity, int _price) public{
-        if(generationBids[_price]==0){
+    function generationBid(int _quantity, int _price) public {
+        if (generationBids[_price] == 0) {
             _generationPrices.push(_price);
             generationBids[_price] = _quantity;
         } else {
@@ -114,6 +124,7 @@ contract DoubleAuction {
         }
     }
 
+
     function computeClearing() private{
         bool check = false;
         int a = getPriceCap();
@@ -126,55 +137,56 @@ contract DoubleAuction {
         uint j = 0;
 
         //sort arrays, consumer's bid descending, producer's ascending
-        if (_consumptionPrices.length != 0){
+        if (_consumptionPrices.length != 0) {
             quickSortDescending(_consumptionPrices, 0, int(_consumptionPrices.length - 1));
         }
-        if (_generationPrices.length != 0){
+        if (_generationPrices.length != 0) {
             quickSortAscending(_generationPrices, 0, int(_generationPrices.length - 1));
         }
-        if(_consumptionPrices.length > 0 && _generationPrices.length > 0){
-
+        if (_consumptionPrices.length > 0 && _generationPrices.length > 0) {
             Bid memory buy = Bid({
-            quantity: consumptionBids[_consumptionPrices[i]],
-            price: _consumptionPrices[i]
+            quantity : consumptionBids[_consumptionPrices[i]],
+            price : _consumptionPrices[i]
             });
+
             Bid memory sell = Bid({
-            quantity: generationBids[_generationPrices[j]],
-            price: _generationPrices[j]
+            quantity : generationBids[_generationPrices[j]],
+            price : _generationPrices[j]
             });
-            clearing.clearingType = 6;
-            while(i<_consumptionPrices.length && j<_generationPrices.length && buy.price>=sell.price){
-                buy_quantity = demand_quantity + buy.quantity;
-                sell_quantity = supply_quantity + sell.quantity;
-                if (buy_quantity > sell_quantity){
-                    supply_quantity = sell_quantity;
-                    clearing.clearingQuantity = sell_quantity;
+
+            clearing.clearingType = 6; // type is null
+
+            while (i < _consumptionPrices.length && j < _generationPrices.length && buy.price >= sell.price) {
+                buy_quantity = demand_quantity + buy.quantity; // 总购买量 = 总需求量 + 本单购买量
+                sell_quantity = supply_quantity + sell.quantity; // 总销售量 = 总供给量 + 本单销售量
+
+                if (buy_quantity > sell_quantity) { // 如果总购买量大于总销售量
+                    supply_quantity = sell_quantity; // 则总供给量 = 总销售量
+                    clearing.clearingQuantity = sell_quantity; // 结算量 = 总销售量
                     b = buy.price;
                     a = buy.price;
                     ++j;
 
-                    if(j < _generationPrices.length){
-                        sell.price =  _generationPrices[j];
+                    if (j < _generationPrices.length) {
+                        sell.price = _generationPrices[j];
                         sell.quantity = generationBids[_generationPrices[j]];
                     }
                     check = false;
-                    clearing.clearingType = 2;
-                }
-                else if (buy_quantity < sell_quantity){
+                    clearing.clearingType = 2; //marginal_buyer
+                } else if (buy_quantity < sell_quantity) {
                     demand_quantity = buy_quantity;
                     clearing.clearingQuantity = buy_quantity;
                     b = sell.price;
                     a = sell.price;
                     i++;
 
-                    if(i < _consumptionPrices.length){
-                        buy.price =  _consumptionPrices[i];
+                    if (i < _consumptionPrices.length) {
+                        buy.price = _consumptionPrices[i];
                         buy.quantity = consumptionBids[_consumptionPrices[i]];
                     }
                     check = false;
-                    clearing.clearingType = 1;
-                }
-                else{
+                    clearing.clearingType = 1; // marginal_seller
+                } else {// buy_quantity == sell_quantity
                     supply_quantity = buy_quantity;
                     demand_quantity = buy_quantity;
                     clearing.clearingQuantity = buy_quantity;
@@ -183,13 +195,13 @@ contract DoubleAuction {
                     i++;
                     j++;
 
-                    if(i < _consumptionPrices.length){
-                        buy.price =  _consumptionPrices[i];
+                    if (i < _consumptionPrices.length) {
+                        buy.price = _consumptionPrices[i];
                         buy.quantity = consumptionBids[_consumptionPrices[i]];
                     }
 
-                    if(j < _generationPrices.length){
-                        sell.price =  _generationPrices[j];
+                    if (j < _generationPrices.length) {
+                        sell.price = _generationPrices[j];
                         sell.quantity = generationBids[_generationPrices[j]];
                     }
 
@@ -197,22 +209,25 @@ contract DoubleAuction {
                 }
 
             }
-            if(a == b){
+
+            if (a == b) {// buy.price == sell.price
                 clearing.clearingPrice = a;
             }
-            if(check){ /* there was price agreement or quantity disagreement */
+
+            if (check) {/* there was price agreement or quantity disagreement */
                 clearing.clearingPrice = a;
-                if(supply_quantity == demand_quantity){
-                    if(i == _consumptionPrices.length || j ==  _generationPrices.length){
-                        if(i == _consumptionPrices.length && j == _generationPrices.length){ // both sides exhausted at same quantity
-                            if(a == b){
-                                clearing.clearingType = 4;
+
+                if (supply_quantity == demand_quantity) {
+                    if (i == _consumptionPrices.length || j == _generationPrices.length) {
+                        if (i == _consumptionPrices.length && j == _generationPrices.length) {// both sides exhausted at same quantity
+                            if (a == b) {
+                                clearing.clearingType = 4; // exact
                             } else {
-                                clearing.clearingType = 3;
+                                clearing.clearingType = 3; // marginal_price
                             }
-                        } else if (i == _consumptionPrices.length && b == sell.price){ // exhausted buyers, sellers unsatisfied at same price
+                        } else if (i == _consumptionPrices.length && b == sell.price) {// exhausted buyers, sellers unsatisfied at same price
                             clearing.clearingType = 1;
-                        } else if (j == _generationPrices.length && a == buy.price){ // exhausted sellers, buyers unsatisfied at same price
+                        } else if (j == _generationPrices.length && a == buy.price) {// exhausted sellers, buyers unsatisfied at same price
                             clearing.clearingType = 2;
                         } else { // both sides satisfied at price, but one side exhausted
                             if(a == b){
@@ -306,24 +321,22 @@ contract DoubleAuction {
                 }
             }
             /* check for zero demand but non-zero first unit sell price */
-            if (clearing.clearingQuantity==0)
-            {
+            if (clearing.clearingQuantity == 0) {
                 clearing.clearingType = 6;
                 clearing.clearingPrice = getClearingPriceDemandZero();
-
-            }else if(clearing.clearingQuantity < consumptionBids[getPriceCap()]){
+            } else if (clearing.clearingQuantity < consumptionBids[getPriceCap()]) {
                 clearing.clearingType = 5;
                 clearing.clearingPrice = getPriceCap();
-            }else if(clearing.clearingQuantity < generationBids[-getPriceCap()]){
-                clearing. clearingType = 5;
-                clearing.clearingPrice = -getPriceCap();
-            }else if(clearing.clearingQuantity == consumptionBids[getPriceCap()] && clearing.clearingQuantity == generationBids[-getPriceCap()]){
+            } else if (clearing.clearingQuantity < generationBids[- getPriceCap()]) {
+                clearing.clearingType = 5;
+                clearing.clearingPrice = - getPriceCap();
+            } else if (clearing.clearingQuantity == consumptionBids[getPriceCap()] && clearing.clearingQuantity == generationBids[- getPriceCap()]) {
                 clearing.clearingType = 3;
                 clearing.clearingPrice = 0;
             }
 
-        }else{
-            clearing.clearingPrice =  getClearingPriceOneLengthZero();
+        } else { // one of buy and sell sequence is null
+            clearing.clearingPrice = getClearingPriceOneLengthZero();
             clearing.clearingQuantity = 0;
             clearing.clearingType = 6;
         }
@@ -359,16 +372,16 @@ contract DoubleAuction {
         }
     }
 
-    function getClearingPriceDemandZero() view private returns(int){
-        if(_generationPrices.length > 0 && _consumptionPrices.length == 0){
-            return _generationPrices[0]-1;
-        } else if(_generationPrices.length == 0 && _consumptionPrices.length > 0){
-            return _consumptionPrices[0]+1;
+    function getClearingPriceDemandZero() view private returns (int){
+        if (_generationPrices.length > 0 && _consumptionPrices.length == 0) {
+            return _generationPrices[0] - 1;
+        } else if (_generationPrices.length == 0 && _consumptionPrices.length > 0) {
+            return _consumptionPrices[0] + 1;
         } else {
-            if(_generationPrices[0] == getPriceCap()){
-                return _consumptionPrices[0]+1;
-            } else if (_consumptionPrices[0] == -getPriceCap()){
-                return _generationPrices[0]-1;
+            if (_generationPrices[0] == getPriceCap()) {
+                return _consumptionPrices[0] + 1;
+            } else if (_consumptionPrices[0] == - getPriceCap()) {
+                return _generationPrices[0] - 1;
             } else {
                 return _generationPrices[0] + (_consumptionPrices[0] - _generationPrices[0]) / 2;
             }

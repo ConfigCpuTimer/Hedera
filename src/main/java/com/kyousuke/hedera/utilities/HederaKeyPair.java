@@ -20,4 +20,8 @@ public class HederaKeyPair {
     public PublicKey getPublicKey() {
         return publicKey;
     }
+
+    public PrivateKey getPrivateKey() {
+        return privateKey;
+    }
 }

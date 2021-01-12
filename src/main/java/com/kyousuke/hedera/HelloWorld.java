@@ -3,6 +3,8 @@ package com.kyousuke.hedera;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.hedera.hashgraph.sdk.*;
+import com.kyousuke.hedera.utilities.HederaAccount;
+import com.kyousuke.hedera.utilities.HederaClient;
 import io.github.cdimascio.dotenv.Dotenv;
 import org.jetbrains.annotations.Contract;
 
@@ -128,7 +130,7 @@ public class HelloWorld {
         System.out.println("Contract message: " + contractFunctionResult.getString(0));
 
 
-        Client newClient = createNewClient(client);
+        Client newClient = HederaClient.makeNewClientFromExistedClient(client);
 
         ContractFunctionResult newContractFunctionResult = new ContractCallQuery()
                 .setGas(6000)
@@ -138,6 +140,14 @@ public class HelloWorld {
                 .execute(newClient);
 
         System.out.println(newContractFunctionResult.getString(0));
+
+        System.out.println(new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("greet")
+                .setMaxQueryPayment(new Hbar(1))
+                .execute(HederaClient.makeNewClientFromExistedClient(client))
+                .getString(0));
 
         // Delete the contract
         TransactionReceipt contractDeleteResult = new ContractDeleteTransaction()

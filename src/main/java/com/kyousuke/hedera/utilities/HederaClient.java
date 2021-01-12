@@ -1,10 +1,9 @@
 package com.kyousuke.hedera.utilities;
 
-import com.hedera.hashgraph.sdk.Client;
-import com.hedera.hashgraph.sdk.Hbar;
-import com.hedera.hashgraph.sdk.PrivateKey;
-import com.hedera.hashgraph.sdk.AccountId;
+import com.hedera.hashgraph.sdk.*;
 import com.kyousuke.hedera.utilities.HederaAccount;
+
+import java.util.concurrent.TimeoutException;
 
 public class HederaClient {
     /**
@@ -40,14 +39,11 @@ public class HederaClient {
         return client;
     }
 
-    /*public static Client makeNewClientFromExistedClient(String accountId, String privateKey, Client client) {
-        Client newClient = (EnvUtils.getHederaEnvironment() == EnvUtils.Hedera_Environment.TESTNET) ?
-                Client.forTestnet() : Client.forMainnet();
+    public static Client makeNewClientFromExistedClient(Client client) throws HederaReceiptStatusException, TimeoutException, HederaPreCheckStatusException {
+        HederaAccount hederaAccount = HederaAccount.getHederaAccountInstance(client);
 
-
-
-        return newClient;
-    }*/
+        return makeNewClient(hederaAccount.getAccountId(), hederaAccount.getHederaKeyPair().getPrivateKey());
+    }
 
     /*public static MirrorClient getMirrorClient() {
         if (mirrorClient == null) {
