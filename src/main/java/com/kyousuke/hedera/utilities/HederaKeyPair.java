@@ -5,7 +5,7 @@ import com.hedera.hashgraph.sdk.PublicKey;
 
 public class HederaKeyPair {
     private final PrivateKey privateKey;
-    private final PublicKey publicKey;
+    public final PublicKey publicKey;
 
     public HederaKeyPair() {
         privateKey = PrivateKey.generate();

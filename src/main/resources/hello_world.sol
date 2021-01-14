@@ -15,6 +15,11 @@ contract HelloWorld {
         else return "Oops!";
     }
 
+    function twoPara(int8 a, int8 b) public returns (string memory) {
+        if (a == 1 && b == 1) return "Correct";
+        else return "Error";
+    }
+
     // recover the funds of the contract
     function kill() public { if (msg.sender == owner) selfdestruct(msg.sender); }
 }

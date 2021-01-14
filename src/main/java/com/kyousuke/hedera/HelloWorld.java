@@ -3,7 +3,6 @@ package com.kyousuke.hedera;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.hedera.hashgraph.sdk.*;
-import com.kyousuke.hedera.utilities.HederaAccount;
 import com.kyousuke.hedera.utilities.HederaClient;
 import io.github.cdimascio.dotenv.Dotenv;
 import org.jetbrains.annotations.Contract;
@@ -53,7 +52,7 @@ public class HelloWorld {
 
         JsonObject jsonObject;
 
-        try(InputStream jsonStream = cl.getResourceAsStream("hello_world.json")) {
+        try(InputStream jsonStream = cl.getResourceAsStream(/*"hello_world.json"*/"CommonAuction.json")) {
             if(jsonStream == null) {
                 throw new RuntimeException("Failed to get .json file");
             }
@@ -91,7 +90,7 @@ public class HelloWorld {
                 // Use the same key as the operator to "own" this file
                 .setKeys(OPERATOR_KEY)
                 .setContents(byteCodeHex.getBytes(StandardCharsets.UTF_8))
-                .setMaxTransactionFee(new Hbar(2))
+                .setMaxTransactionFee(new Hbar(20))
                 .execute(client);
 
         TransactionReceipt fileReceipt = fileTxResponse.getReceipt(client);
@@ -118,7 +117,7 @@ public class HelloWorld {
         ContractFunctionResult contractFunctionResult = new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("greet")
+                .setFunction("consumptionBid", new ContractFunctionParameters().addInt8((byte) 10))
                 .setMaxQueryPayment(new Hbar(1))
                 .execute(client);
 
@@ -135,7 +134,7 @@ public class HelloWorld {
         ContractFunctionResult newContractFunctionResult = new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("greet")
+                .setFunction("generationBid", new ContractFunctionParameters().addInt8((byte) 20))
                 .setMaxQueryPayment(new Hbar(1))
                 .execute(newClient);
 
@@ -144,10 +143,10 @@ public class HelloWorld {
         System.out.println(new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("greet")
+                .setFunction("marketClearingTest")
                 .setMaxQueryPayment(new Hbar(1))
-                .execute(HederaClient.makeNewClientFromExistedClient(client))
-                .getString(0));
+                .execute(newClient)
+                .getInt8(0));
 
         // Delete the contract
         TransactionReceipt contractDeleteResult = new ContractDeleteTransaction()
