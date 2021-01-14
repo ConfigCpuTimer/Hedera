@@ -1,28 +1,27 @@
 pragma solidity >=0.4.22 <0.6.0;
 
-contract HelloWorld {
+contract StatefulContract {
     // the contract's owner, set in the constructor
     address owner;
-    int8[] prices;
 
-    constructor() public {
+    // the message we're storing
+    string message;
+
+    constructor(string memory message_) public {
         // set the owner of the contract for `kill()`
         owner = msg.sender;
+        message = message_;
+    }
+
+    function set_message(string memory message_) public {
+        // only allow the owner to update the message
+//        if(msg.sender != owner) return;
+        message = message_;
     }
 
     // return a string
-    function greet() public returns (string memory) {
-        if (msg.sender == owner) return "Hello, world!";
-        else return "Oops!";
-    }
-
-    function bidding(int8 _value) public returns(int8) {
-//        prices.push(_value);
-        return _value;
-    }
-
-    function getResult() public returns(int8) {
-        return 10;
+    function get_message() public view returns (string memory) {
+        return message;
     }
 
     // recover the funds of the contract
