@@ -3,6 +3,8 @@ package com.kyousuke.hedera;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.hedera.hashgraph.sdk.*;
+import com.hedera.hashgraph.sdk.proto.ContractCall;
+import com.hedera.hashgraph.sdk.proto.ContractCallTransactionBody;
 import com.kyousuke.hedera.utilities.HederaAccount;
 import com.kyousuke.hedera.utilities.HederaClient;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -100,11 +102,12 @@ public class HelloWorld {
         System.out.println("contract bytecode file: " + fileId);
 
         TransactionResponse contractTxResponse = new ContractCreateTransaction()
-                .setGas(500)
+                .setGas(5000)
                 .setBytecodeFileId(fileId)
                 // set an admin key so we can delete the contract later
-                .setAdminKey(OPERATOR_KEY)
+                // .setAdminKey(OPERATOR_KEY)
                 .setMaxTransactionFee(new Hbar(16))
+                .setConstructorParameters(new ContractFunctionParameters().addString("Hello!"))
                 .execute(client);
 
         TransactionReceipt contractReceipt = contractTxResponse.getReceipt(client);
@@ -115,40 +118,38 @@ public class HelloWorld {
 
         System.out.println("new contract ID: " + contractId);
 
-        ContractFunctionResult contractFunctionResult = new ContractCallQuery()
-                .setGas(6000)
-                .setContractId(contractId)
-                .setFunction("bidding", new ContractFunctionParameters().addInt8((byte) 15))
-                .setMaxQueryPayment(new Hbar(1))
-                .execute(client);
 
-        if(contractFunctionResult.errorMessage != null) {
+        /*if(contractFunctionResult.errorMessage != null) {
             System.out.println("Error calling contract: " + contractFunctionResult.errorMessage);
             return;
-        }
+        }*/
 
-        System.out.println("Contract message: " + contractFunctionResult.getInt8(0));
-
+        // System.out.println("Contract message: " + contractFunctionResult.getInt8(0));
 
         Client newClient = HederaClient.makeNewClientFromExistedClient(client);
-
-        ContractFunctionResult newContractFunctionResult = new ContractCallQuery()
-                .setGas(6000)
-                .setContractId(contractId)
-                .setFunction("bidding", new ContractFunctionParameters().addInt8((byte) 5))
-                .setMaxQueryPayment(new Hbar(1))
-                .execute(client);
-
-        System.out.println(newContractFunctionResult.getInt8(0));
 
         System.out.println(new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("getResult")
+                .setFunction("get_message")
+                .setMaxQueryPayment(new Hbar(1))
+                .execute(newClient)
+                .getString(0));
+
+        new ContractExecuteTransaction()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("set_message",
+                        new ContractFunctionParameters().addString("Hello Again!"))
+                .execute(newClient);
+
+        System.out.println(new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("get_message")
                 .setMaxQueryPayment(new Hbar(1))
                 .execute(HederaClient.makeNewClientFromExistedClient(client))
-                .getInt8(0));
-
+                .getString(0));
 
 
         // Delete the contract

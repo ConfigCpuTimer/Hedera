@@ -38,7 +38,7 @@ contract DoubleAuction {
         clearing.clearingPrice = 0;
         clearing.clearingQuantity = 0;
         clearing.clearingType = 0;
-        clearing.clearingTime = 0;
+        // clearing.clearingTime = 0;
     }
 
 
