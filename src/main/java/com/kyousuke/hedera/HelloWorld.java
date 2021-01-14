@@ -118,7 +118,7 @@ public class HelloWorld {
         ContractFunctionResult contractFunctionResult = new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("greet")
+                .setFunction("bidding", new ContractFunctionParameters().addInt8((byte) 15))
                 .setMaxQueryPayment(new Hbar(1))
                 .execute(client);
 
@@ -127,7 +127,7 @@ public class HelloWorld {
             return;
         }
 
-        System.out.println("Contract message: " + contractFunctionResult.getString(0));
+        System.out.println("Contract message: " + contractFunctionResult.getInt8(0));
 
 
         Client newClient = HederaClient.makeNewClientFromExistedClient(client);
@@ -135,19 +135,21 @@ public class HelloWorld {
         ContractFunctionResult newContractFunctionResult = new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("greet")
+                .setFunction("bidding", new ContractFunctionParameters().addInt8((byte) 5))
                 .setMaxQueryPayment(new Hbar(1))
-                .execute(newClient);
+                .execute(client);
 
-        System.out.println(newContractFunctionResult.getString(0));
+        System.out.println(newContractFunctionResult.getInt8(0));
 
         System.out.println(new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("greet")
+                .setFunction("getResult")
                 .setMaxQueryPayment(new Hbar(1))
                 .execute(HederaClient.makeNewClientFromExistedClient(client))
-                .getString(0));
+                .getInt8(0));
+
+
 
         // Delete the contract
         TransactionReceipt contractDeleteResult = new ContractDeleteTransaction()
