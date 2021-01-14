@@ -135,7 +135,6 @@ public class HelloWorld {
                 .setMaxQueryPayment(new Hbar(1))
                 .execute(newClient)
                 .getString(0));
-
         new ContractExecuteTransaction()
                 .setGas(6000)
                 .setContractId(contractId)
