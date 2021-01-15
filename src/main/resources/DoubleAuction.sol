@@ -29,7 +29,7 @@ contract DoubleAuction {
         marginal_price,
         exact,
         failure,
-        null
+        NULL
     }
 
     constructor() public{
@@ -50,7 +50,7 @@ contract DoubleAuction {
             consumptionBids[_price] = consumptionBids[_price] + _quantity;
         }
 
-        marketClearing();
+//        marketClearing();
     }
 
     function generationBid(int _quantity, int _price) public {
@@ -61,7 +61,7 @@ contract DoubleAuction {
             generationBids[_price] = generationBids[_price] + _quantity;
         }
 
-        marketClearing();
+//        marketClearing();
     }
 
     function getPriceCap() pure private returns(int){
@@ -124,6 +124,9 @@ contract DoubleAuction {
         }
     }
 
+    function marketClearingTest() public returns(int) {
+        return (_consumptionPrices[0] + _generationPrices[0]) / 2;
+    }
 
     function computeClearing() private{
         bool check = false;

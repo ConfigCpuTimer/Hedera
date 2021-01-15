@@ -13,6 +13,7 @@ import org.jetbrains.annotations.Contract;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
@@ -29,23 +30,29 @@ public class HelloWorld {
     private static final String HEDERA_NETWORK = Dotenv.load().get("HEDERA_NETWORK");
     private static final String CONFIG_FILE = Dotenv.load().get("CONFIG_FILE");
 
-    public static Client createNewClient(Client client) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException {
-        PrivateKey privateKey = PrivateKey.generate();
-        PublicKey publicKey = privateKey.getPublicKey();
+    public void auctionTest(Client client) throws IOException, TimeoutException, HederaPreCheckStatusException {
+        JsonObject jsonObject;
 
-        AccountId accountId = new AccountCreateTransaction()
-                .setKey(publicKey)
-                .setInitialBalance(new Hbar(100))
-                .execute(client)
-                .getReceipt(client)
-                .accountId;
+        try(InputStream jsonStream = HelloWorld.class.getClassLoader().getResourceAsStream("hello_world.json")) {
+            if(jsonStream == null) {
+                throw new RuntimeException("Failed to get .json file");
+            }
 
-        Client newClient = Client.forTestnet().setOperator(Objects.requireNonNull(accountId), privateKey);
+            jsonObject = new Gson()
+                    .fromJson(new InputStreamReader(jsonStream, StandardCharsets.UTF_8), JsonObject.class);
+        }
 
-        Hbar accountBalance = new AccountBalanceQuery().setAccountId(accountId).execute(newClient).hbars;
-        System.out.println(accountBalance);
+        String byteCodeHex = jsonObject.getAsJsonPrimitive("object")
+                .getAsString();
 
-        return newClient;
+        // TODO: Split byteCodeHex
+
+        TransactionResponse fileTxResponse = new FileCreateTransaction()
+                // Use the same key as the operator to "own" this file
+                // .setKeys(/**/)
+                .setContents(byteCodeHex.getBytes(StandardCharsets.UTF_8))
+                .setMaxTransactionFee(new Hbar(2))
+                .execute(client);
     }
 
     public static void main(String[] args) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException, IOException {
@@ -105,7 +112,7 @@ public class HelloWorld {
                 .setGas(5000)
                 .setBytecodeFileId(fileId)
                 // set an admin key so we can delete the contract later
-                // .setAdminKey(OPERATOR_KEY)
+                .setAdminKey(OPERATOR_KEY)
                 .setMaxTransactionFee(new Hbar(16))
                 .setConstructorParameters(new ContractFunctionParameters().addString("Hello!"))
                 .execute(client);
@@ -126,14 +133,13 @@ public class HelloWorld {
 
         // System.out.println("Contract message: " + contractFunctionResult.getInt8(0));
 
-        Client newClient = HederaClient.makeNewClientFromExistedClient(client);
+        // Client newClient = HederaClient.makeNewClientFromExistedClient(client);
 
         System.out.println(new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
                 .setFunction("get_message")
-                .setMaxQueryPayment(new Hbar(1))
-                .execute(newClient)
+                .execute(client)
                 .getString(0));
 
         new ContractExecuteTransaction()
@@ -141,13 +147,13 @@ public class HelloWorld {
                 .setContractId(contractId)
                 .setFunction("set_message",
                         new ContractFunctionParameters().addString("Hello Again!"))
-                .execute(newClient);
+                .execute(client);
 
         System.out.println(new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
                 .setFunction("get_message")
-                .setMaxQueryPayment(new Hbar(1))
+                // .setMaxQueryPayment(new Hbar(1))
                 .execute(HederaClient.makeNewClientFromExistedClient(client))
                 .getString(0));
 
