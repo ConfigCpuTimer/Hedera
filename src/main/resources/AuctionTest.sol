@@ -11,6 +11,6 @@ contract AuctionTest {
     }
 
     function marketClear() public returns(int) {
-        return int8 (biddings[0] +biddings[1]);
+        return int8 (biddings[0] + biddings[1]);
     }
 }

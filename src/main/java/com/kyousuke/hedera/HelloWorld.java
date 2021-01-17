@@ -30,10 +30,10 @@ public class HelloWorld {
     private static final String HEDERA_NETWORK = Dotenv.load().get("HEDERA_NETWORK");
     private static final String CONFIG_FILE = Dotenv.load().get("CONFIG_FILE");
 
-    public void auctionTest(Client client) throws IOException, TimeoutException, HederaPreCheckStatusException {
+    public static void auctionTest(Client client) throws IOException, TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException {
         JsonObject jsonObject;
 
-        try(InputStream jsonStream = HelloWorld.class.getClassLoader().getResourceAsStream("hello_world.json")) {
+        try(InputStream jsonStream = HelloWorld.class.getClassLoader().getResourceAsStream("AuctionTest.json")) {
             if(jsonStream == null) {
                 throw new RuntimeException("Failed to get .json file");
             }
@@ -53,9 +53,65 @@ public class HelloWorld {
                 .setContents(byteCodeHex.getBytes(StandardCharsets.UTF_8))
                 .setMaxTransactionFee(new Hbar(2))
                 .execute(client);
+
+        TransactionResponse contractTxResponse = new ContractCreateTransaction()
+                .setGas(6000)
+                .setBytecodeFileId(Objects.requireNonNull(fileTxResponse.getReceipt(client).fileId))
+                .setMaxTransactionFee(new Hbar(3))
+                .execute(client);
+
+        TransactionReceipt contractReceipt = contractTxResponse.getReceipt(client);
+
+        System.out.println(contractReceipt);
+
+        ContractId contractId = Objects.requireNonNull(contractReceipt.contractId);
+
+        System.out.println("new contract ID: " + contractId);
+
+        new ContractExecuteTransaction()
+                .setContractId(contractId)
+                .setGas(6000)
+                .setFunction("submitBid", new ContractFunctionParameters().addInt256(BigInteger.valueOf(10)))
+                .setMaxTransactionFee(new Hbar(10))
+                .execute(client);
+
+        new ContractExecuteTransaction()
+                .setContractId(contractId)
+                .setGas(6000)
+                .setFunction("submitBid", new ContractFunctionParameters().addInt256(BigInteger.valueOf(20)))
+                .setMaxTransactionFee(new Hbar(10))
+                .execute(client);
+
+        System.out.println(new ContractCallQuery()
+                .setContractId(contractId)
+                .setGas(6000)
+                .setFunction("marketClear")
+                .setMaxQueryPayment(new Hbar(10))
+                .execute(client));
     }
 
     public static void main(String[] args) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException, IOException {
+        Client client;
+
+        if(HEDERA_NETWORK != null && HEDERA_NETWORK.equals("previewnet")) {
+            client = Client.forPreviewnet();
+        } else {
+            try {
+                client = Client.fromConfigFile(CONFIG_FILE != null ? CONFIG_FILE : "");
+            } catch(Exception e) {
+                client = Client.forTestnet();
+            }
+        }
+
+        // Defaults the operator account ID and key such that all generated transactions will be paid for
+        // by this account and be signed by this key
+        client.setOperator(OPERATOR_ID, OPERATOR_KEY);
+
+        Hbar hbar = new AccountBalanceQuery().setAccountId(OPERATOR_ID).execute(client).hbars;
+        System.out.println("Operator account balance: " + hbar);
+
+        auctionTest(client);
+
         ClassLoader cl = HelloWorld.class.getClassLoader();
 
         Gson gson = new Gson();
@@ -77,24 +133,7 @@ public class HelloWorld {
         // Client client = Client.forTestnet();
         // client.setOperator(myAccountId, myPrivateKey);
 
-        Client client;
 
-        if(HEDERA_NETWORK != null && HEDERA_NETWORK.equals("previewnet")) {
-            client = Client.forPreviewnet();
-        } else {
-            try {
-                client = Client.fromConfigFile(CONFIG_FILE != null ? CONFIG_FILE : "");
-            } catch(Exception e) {
-                client = Client.forTestnet();
-            }
-        }
-
-        // Defaults the operator account ID and key such that all generated transactions will be paid for
-        // by this account and be signed by this key
-        client.setOperator(OPERATOR_ID, OPERATOR_KEY);
-
-        Hbar hbar = new AccountBalanceQuery().setAccountId(OPERATOR_ID).execute(client).hbars;
-        System.out.println("Operator account balance: " + hbar);
 
         TransactionResponse fileTxResponse = new FileCreateTransaction()
                 // Use the same key as the operator to "own" this file
