@@ -3,8 +3,6 @@ package com.kyousuke.hedera;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.hedera.hashgraph.sdk.*;
-import com.hedera.hashgraph.sdk.proto.ContractCall;
-import com.hedera.hashgraph.sdk.proto.ContractCallTransactionBody;
 import com.kyousuke.hedera.utilities.HederaAccount;
 import com.kyousuke.hedera.utilities.HederaClient;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -30,87 +28,132 @@ public class HelloWorld {
     private static final String HEDERA_NETWORK = Dotenv.load().get("HEDERA_NETWORK");
     private static final String CONFIG_FILE = Dotenv.load().get("CONFIG_FILE");
 
-    public static void auctionTest(Client client) throws IOException, TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException {
+    public static void auctionTest() throws IOException, TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException {
+        ClassLoader cl = HelloWorld.class.getClassLoader();
+
+        Gson gson = new Gson();
+
         JsonObject jsonObject;
 
-        try(InputStream jsonStream = HelloWorld.class.getClassLoader().getResourceAsStream("AuctionTest.json")) {
+        try(InputStream jsonStream = cl.getResourceAsStream("AuctionTest.json")) {
             if(jsonStream == null) {
                 throw new RuntimeException("Failed to get .json file");
             }
 
-            jsonObject = new Gson()
-                    .fromJson(new InputStreamReader(jsonStream, StandardCharsets.UTF_8), JsonObject.class);
+            jsonObject = gson.fromJson(new InputStreamReader(jsonStream, StandardCharsets.UTF_8), JsonObject.class);
         }
 
         String byteCodeHex = jsonObject.getAsJsonPrimitive("object")
                 .getAsString();
 
-        // TODO: Split byteCodeHex
+        Client client = Client.forTestnet();
 
-        TransactionResponse fileTxResponse = new FileCreateTransaction()
+        client.setOperator(OPERATOR_ID, OPERATOR_KEY);
+
+        TransactionResponse fileTxResponseEmpty = new FileCreateTransaction()
                 // Use the same key as the operator to "own" this file
-                // .setKeys(/**/)
-                .setContents(byteCodeHex.getBytes(StandardCharsets.UTF_8))
+                .setKeys(OPERATOR_KEY)
+                .setContents(""/*"".getBytes(StandardCharsets.UTF_8)*/)
                 .setMaxTransactionFee(new Hbar(2))
                 .execute(client);
 
-        TransactionResponse contractTxResponse = new ContractCreateTransaction()
-                .setGas(6000)
-                .setBytecodeFileId(Objects.requireNonNull(fileTxResponse.getReceipt(client).fileId))
-                .setMaxTransactionFee(new Hbar(3))
+        TransactionReceipt fileReceipt = fileTxResponseEmpty.getReceipt(client);
+        FileId fileId = Objects.requireNonNull(fileReceipt.fileId);
+
+        TransactionResponse fileAppendResponse = new FileAppendTransaction()
+                .setFileId(fileId)
+                .setMaxTransactionFee(new Hbar(10))
+                .setContents(byteCodeHex.getBytes(StandardCharsets.UTF_8))
                 .execute(client);
 
-        TransactionReceipt contractReceipt = contractTxResponse.getReceipt(client);
+        /*TransactionResponse fileTxResponse = new FileCreateTransaction()
+                // Use the same key as the operator to "own" this file
+                .setKeys(OPERATOR_KEY)
+                .setContents(byteCodeHex.getBytes(StandardCharsets.UTF_8))
+                .setMaxTransactionFee(new Hbar(2))
+                .execute(client);*/
 
-        System.out.println(contractReceipt);
+        System.out.println("contract bytecode file: " + fileId);
 
-        ContractId contractId = Objects.requireNonNull(contractReceipt.contractId);
+        TransactionResponse contractTxResponse = new ContractCreateTransaction()
+                .setGas(5000)
+                .setBytecodeFileId(fileId)
+                // set an admin key so we can delete the contract later
+                .setAdminKey(OPERATOR_KEY)
+                .setMaxTransactionFee(new Hbar(16))
+                .execute(client);
+
+        ContractId contractId = Objects.requireNonNull(contractTxResponse.getReceipt(client).contractId);
 
         System.out.println("new contract ID: " + contractId);
 
         new ContractExecuteTransaction()
-                .setContractId(contractId)
                 .setGas(6000)
+                .setContractId(contractId)
                 .setFunction("submitBid", new ContractFunctionParameters().addInt256(BigInteger.valueOf(10)))
                 .setMaxTransactionFee(new Hbar(10))
                 .execute(client);
 
         new ContractExecuteTransaction()
-                .setContractId(contractId)
                 .setGas(6000)
+                .setContractId(contractId)
                 .setFunction("submitBid", new ContractFunctionParameters().addInt256(BigInteger.valueOf(20)))
                 .setMaxTransactionFee(new Hbar(10))
                 .execute(client);
 
-        System.out.println(new ContractCallQuery()
-                .setContractId(contractId)
+        ContractFunctionResult contractFunctionResult = new ContractCallQuery()
                 .setGas(6000)
+                .setContractId(contractId)
                 .setFunction("marketClear")
+                .setMaxQueryPayment(new Hbar(20))
+                .execute(client);
+
+        System.out.println(contractFunctionResult.getInt256(0));
+
+        ContractFunctionResult contractFunctionResultLength = new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("getLength")
                 .setMaxQueryPayment(new Hbar(10))
-                .execute(client));
+                .execute(client);
+
+        System.out.println(contractFunctionResultLength.getUint256(0));
+
+        ContractFunctionResult contractFunctionResultTwo = new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("marketClearTwo")
+                .setMaxQueryPayment(new Hbar(10))
+                .execute(client);
+
+        System.out.println(contractFunctionResultTwo.getInt256(0));
+    }
+
+    public static void doubleAuction() throws IOException {
+        ClassLoader cl = HelloWorld.class.getClassLoader();
+
+        Gson gson = new Gson();
+
+        JsonObject jsonObject;
+
+        try(InputStream jsonStream = cl.getResourceAsStream("DoubleAuction.json")) {
+            if(jsonStream == null) {
+                throw new RuntimeException("Failed to get .json file");
+            }
+
+            jsonObject = gson.fromJson(new InputStreamReader(jsonStream, StandardCharsets.UTF_8), JsonObject.class);
+        }
+
+        String byteCodeHex = jsonObject.getAsJsonPrimitive("object")
+                .getAsString();
+
+        Client client = Client.forTestnet();
+
+        client.setOperator(OPERATOR_ID, OPERATOR_KEY);
     }
 
     public static void main(String[] args) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException, IOException {
-        Client client;
-
-        if(HEDERA_NETWORK != null && HEDERA_NETWORK.equals("previewnet")) {
-            client = Client.forPreviewnet();
-        } else {
-            try {
-                client = Client.fromConfigFile(CONFIG_FILE != null ? CONFIG_FILE : "");
-            } catch(Exception e) {
-                client = Client.forTestnet();
-            }
-        }
-
-        // Defaults the operator account ID and key such that all generated transactions will be paid for
-        // by this account and be signed by this key
-        client.setOperator(OPERATOR_ID, OPERATOR_KEY);
-
-        Hbar hbar = new AccountBalanceQuery().setAccountId(OPERATOR_ID).execute(client).hbars;
-        System.out.println("Operator account balance: " + hbar);
-
-        auctionTest(client);
+        auctionTest();
 
         ClassLoader cl = HelloWorld.class.getClassLoader();
 
@@ -133,7 +176,24 @@ public class HelloWorld {
         // Client client = Client.forTestnet();
         // client.setOperator(myAccountId, myPrivateKey);
 
+        Client client;
 
+        if(HEDERA_NETWORK != null && HEDERA_NETWORK.equals("previewnet")) {
+            client = Client.forPreviewnet();
+        } else {
+            try {
+                client = Client.fromConfigFile(CONFIG_FILE != null ? CONFIG_FILE : "");
+            } catch(Exception e) {
+                client = Client.forTestnet();
+            }
+        }
+
+        // Defaults the operator account ID and key such that all generated transactions will be paid for
+        // by this account and be signed by this key
+        client.setOperator(OPERATOR_ID, OPERATOR_KEY);
+
+        Hbar hbar = new AccountBalanceQuery().setAccountId(OPERATOR_ID).execute(client).hbars;
+        System.out.println("Operator account balance: " + hbar);
 
         TransactionResponse fileTxResponse = new FileCreateTransaction()
                 // Use the same key as the operator to "own" this file
@@ -148,12 +208,11 @@ public class HelloWorld {
         System.out.println("contract bytecode file: " + fileId);
 
         TransactionResponse contractTxResponse = new ContractCreateTransaction()
-                .setGas(5000)
+                .setGas(500)
                 .setBytecodeFileId(fileId)
                 // set an admin key so we can delete the contract later
                 .setAdminKey(OPERATOR_KEY)
                 .setMaxTransactionFee(new Hbar(16))
-                .setConstructorParameters(new ContractFunctionParameters().addString("Hello!"))
                 .execute(client);
 
         TransactionReceipt contractReceipt = contractTxResponse.getReceipt(client);
@@ -164,37 +223,40 @@ public class HelloWorld {
 
         System.out.println("new contract ID: " + contractId);
 
-
-        /*if(contractFunctionResult.errorMessage != null) {
-            System.out.println("Error calling contract: " + contractFunctionResult.errorMessage);
-            return;
-        }*/
-
-        // System.out.println("Contract message: " + contractFunctionResult.getInt8(0));
-
-        // Client newClient = HederaClient.makeNewClientFromExistedClient(client);
-
-        System.out.println(new ContractCallQuery()
+        ContractFunctionResult contractFunctionResult = new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("get_message")
-                .execute(client)
-                .getString(0));
-
-        new ContractExecuteTransaction()
-                .setGas(6000)
-                .setContractId(contractId)
-                .setFunction("set_message",
-                        new ContractFunctionParameters().addString("Hello Again!"))
+                .setFunction("bidding", new ContractFunctionParameters().addInt8((byte) 15))
+                .setMaxQueryPayment(new Hbar(1))
                 .execute(client);
 
+        if(contractFunctionResult.errorMessage != null) {
+            System.out.println("Error calling contract: " + contractFunctionResult.errorMessage);
+            return;
+        }
+
+        System.out.println("Contract message: " + contractFunctionResult.getInt8(0));
+
+
+        Client newClient = HederaClient.makeNewClientFromExistedClient(client);
+
+        ContractFunctionResult newContractFunctionResult = new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("bidding", new ContractFunctionParameters().addInt8((byte) 5))
+                .setMaxQueryPayment(new Hbar(1))
+                .execute(client);
+
+        System.out.println(newContractFunctionResult.getInt8(0));
+
         System.out.println(new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("get_message")
-                // .setMaxQueryPayment(new Hbar(1))
+                .setFunction("getResult")
+                .setMaxQueryPayment(new Hbar(1))
                 .execute(HederaClient.makeNewClientFromExistedClient(client))
-                .getString(0));
+                .getInt8(0));
+
 
 
         // Delete the contract

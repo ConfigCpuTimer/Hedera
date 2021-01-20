@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity >=0.4.19 <0.5.0;
 
 contract DoubleAuction {
 
@@ -23,7 +23,7 @@ contract DoubleAuction {
     }
 
     enum ClearType {
-        zero,
+        ZERO,
         marginal_seller,
         marginal_buyer,
         marginal_price,
@@ -42,18 +42,18 @@ contract DoubleAuction {
     }
 
 
-    function consumptionBid(int _quantity, int _price) public{
-        if(consumptionBids[_price]==0){
+    function consumptionBid(int8 _quantity, int8 _price) public {
+        if (consumptionBids[_price] == 0) {
             _consumptionPrices.push(_price);
             consumptionBids[_price] = _quantity;
         } else {
             consumptionBids[_price] = consumptionBids[_price] + _quantity;
         }
 
-//        marketClearing();
+         marketClearing();
     }
 
-    function generationBid(int _quantity, int _price) public {
+    function generationBid(int8 _quantity, int8 _price) public {
         if (generationBids[_price] == 0) {
             _generationPrices.push(_price);
             generationBids[_price] = _quantity;
@@ -61,7 +61,11 @@ contract DoubleAuction {
             generationBids[_price] = generationBids[_price] + _quantity;
         }
 
-//        marketClearing();
+         marketClearing();
+    }
+
+    function marketClearingTest() public returns(int256) {
+        return (consumptionBids[0] + generationBids[0]) / 2;
     }
 
     function getPriceCap() pure private returns(int){
@@ -112,21 +116,18 @@ contract DoubleAuction {
             quickSortAscending(arr, i, right);
     }
 
-    function marketClearing() public{
-        if ((block.number-blockCleared) > 64) {
+    function marketClearing() public {
+        if ((block.number - blockCleared) > 64) {
             blockCleared = block.number;
-            if(_consumptionPrices.length > 340 || _generationPrices.length > 100){
+            if (_consumptionPrices.length > 340 || _generationPrices.length > 100) {
                 deleteMapArrays();
             }
-            else{
+            else {
                 computeClearing();
             }
         }
     }
 
-    function marketClearingTest() public returns(int) {
-        return (_consumptionPrices[0] + _generationPrices[0]) / 2;
-    }
 
     function computeClearing() private{
         bool check = false;
@@ -263,6 +264,7 @@ contract DoubleAuction {
                         }
                     }
                 }
+
                 if(clearing.clearingType == 3){
                     // needs to be just off such that it does not trigger any other bids
                     //clearing.clearingPrice = getClearingPriceType3(i, j, a, b, buy, sell);
@@ -323,6 +325,7 @@ contract DoubleAuction {
                     }
                 }
             }
+
             /* check for zero demand but non-zero first unit sell price */
             if (clearing.clearingQuantity == 0) {
                 clearing.clearingType = 6;

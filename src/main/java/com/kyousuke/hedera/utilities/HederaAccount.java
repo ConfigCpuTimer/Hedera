@@ -5,15 +5,13 @@ import com.hedera.hashgraph.sdk.*;
 import java.util.concurrent.TimeoutException;
 
 public class HederaAccount {
-    private final AccountId accountId;
-    private final HederaKeyPair hederaKeyPair;
-
-    {
-        hederaKeyPair = new HederaKeyPair();
-    }
+    public final AccountId accountId;
+    public HederaKeyPair hederaKeyPair;
 
     private HederaAccount(Client client) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException {
-        this.accountId = new AccountCreateTransaction()
+        hederaKeyPair = new HederaKeyPair();
+
+        accountId = new AccountCreateTransaction()
                 .setKey(this.getHederaKeyPair().getPublicKey())
                 .setInitialBalance(new Hbar(100))
                 .execute(client)
@@ -25,11 +23,11 @@ public class HederaAccount {
         return new HederaAccount(client);
     }
 
-    public HederaKeyPair getHederaKeyPair() {
-        return hederaKeyPair;
-    }
-
     public AccountId getAccountId() {
         return accountId;
+    }
+
+    public HederaKeyPair getHederaKeyPair() {
+        return hederaKeyPair;
     }
 }

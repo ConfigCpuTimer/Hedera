@@ -1,16 +1,21 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.24;
 
 contract AuctionTest {
-    int[] biddings;
-
-    function AuctionTest(){
-    }
+    int[] public biddings;
 
     function submitBid(int _price) public {
         biddings.push(_price);
     }
 
-    function marketClear() public returns(int) {
-        return int8 (biddings[0] + biddings[1]);
+    function getLength() view public returns(uint) {
+        return biddings.length;
+    }
+
+    function marketClear() view public returns(int) {
+        return (biddings[0]);
+    }
+
+    function marketClearTwo() view public returns(int) {
+        return (biddings[biddings.length - 1]);
     }
 }
