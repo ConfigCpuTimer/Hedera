@@ -42,7 +42,7 @@ contract DoubleAuction {
     }
 
 
-    function consumptionBid(int8 _quantity, int8 _price) public returns(string) {
+    function consumptionBid(int8 _quantity, int8 _price) public {
         if (consumptionBids[_price] == 0) {
             _consumptionPrices.push(_price);
             consumptionBids[_price] = _quantity;
@@ -50,12 +50,10 @@ contract DoubleAuction {
             consumptionBids[_price] = consumptionBids[_price] + _quantity;
         }
 
-        // marketClearing();
-
-        return "consumptionBid success";
+         marketClearing();
     }
 
-    function generationBid(int8 _quantity, int8 _price) public returns(string) {
+    function generationBid(int8 _quantity, int8 _price) public {
         if (generationBids[_price] == 0) {
             _generationPrices.push(_price);
             generationBids[_price] = _quantity;
@@ -63,8 +61,7 @@ contract DoubleAuction {
             generationBids[_price] = generationBids[_price] + _quantity;
         }
 
-        // marketClearing();
-        return "generationBid success";
+         marketClearing();
     }
 
     function marketClearingTest() public returns(int256) {

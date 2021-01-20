@@ -3,8 +3,6 @@ package com.kyousuke.hedera;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.hedera.hashgraph.sdk.*;
-import com.hedera.hashgraph.sdk.proto.ContractCall;
-import com.hedera.hashgraph.sdk.proto.ContractCallTransactionBody;
 import com.kyousuke.hedera.utilities.HederaAccount;
 import com.kyousuke.hedera.utilities.HederaClient;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -13,6 +11,7 @@ import org.jetbrains.annotations.Contract;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
@@ -29,26 +28,133 @@ public class HelloWorld {
     private static final String HEDERA_NETWORK = Dotenv.load().get("HEDERA_NETWORK");
     private static final String CONFIG_FILE = Dotenv.load().get("CONFIG_FILE");
 
-    public static Client createNewClient(Client client) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException {
-        PrivateKey privateKey = PrivateKey.generate();
-        PublicKey publicKey = privateKey.getPublicKey();
+    public static void auctionTest() throws IOException, TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException {
+        ClassLoader cl = HelloWorld.class.getClassLoader();
 
-        AccountId accountId = new AccountCreateTransaction()
-                .setKey(publicKey)
-                .setInitialBalance(new Hbar(100))
-                .execute(client)
-                .getReceipt(client)
-                .accountId;
+        Gson gson = new Gson();
 
-        Client newClient = Client.forTestnet().setOperator(Objects.requireNonNull(accountId), privateKey);
+        JsonObject jsonObject;
 
-        Hbar accountBalance = new AccountBalanceQuery().setAccountId(accountId).execute(newClient).hbars;
-        System.out.println(accountBalance);
+        try(InputStream jsonStream = cl.getResourceAsStream("AuctionTest.json")) {
+            if(jsonStream == null) {
+                throw new RuntimeException("Failed to get .json file");
+            }
 
-        return newClient;
+            jsonObject = gson.fromJson(new InputStreamReader(jsonStream, StandardCharsets.UTF_8), JsonObject.class);
+        }
+
+        String byteCodeHex = jsonObject.getAsJsonPrimitive("object")
+                .getAsString();
+
+        Client client = Client.forTestnet();
+
+        client.setOperator(OPERATOR_ID, OPERATOR_KEY);
+
+        TransactionResponse fileTxResponseEmpty = new FileCreateTransaction()
+                // Use the same key as the operator to "own" this file
+                .setKeys(OPERATOR_KEY)
+                .setContents(""/*"".getBytes(StandardCharsets.UTF_8)*/)
+                .setMaxTransactionFee(new Hbar(2))
+                .execute(client);
+
+        TransactionReceipt fileReceipt = fileTxResponseEmpty.getReceipt(client);
+        FileId fileId = Objects.requireNonNull(fileReceipt.fileId);
+
+        TransactionResponse fileAppendResponse = new FileAppendTransaction()
+                .setFileId(fileId)
+                .setMaxTransactionFee(new Hbar(10))
+                .setContents(byteCodeHex.getBytes(StandardCharsets.UTF_8))
+                .execute(client);
+
+        /*TransactionResponse fileTxResponse = new FileCreateTransaction()
+                // Use the same key as the operator to "own" this file
+                .setKeys(OPERATOR_KEY)
+                .setContents(byteCodeHex.getBytes(StandardCharsets.UTF_8))
+                .setMaxTransactionFee(new Hbar(2))
+                .execute(client);*/
+
+        System.out.println("contract bytecode file: " + fileId);
+
+        TransactionResponse contractTxResponse = new ContractCreateTransaction()
+                .setGas(5000)
+                .setBytecodeFileId(fileId)
+                // set an admin key so we can delete the contract later
+                .setAdminKey(OPERATOR_KEY)
+                .setMaxTransactionFee(new Hbar(16))
+                .execute(client);
+
+        ContractId contractId = Objects.requireNonNull(contractTxResponse.getReceipt(client).contractId);
+
+        System.out.println("new contract ID: " + contractId);
+
+        new ContractExecuteTransaction()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("submitBid", new ContractFunctionParameters().addInt256(BigInteger.valueOf(10)))
+                .setMaxTransactionFee(new Hbar(10))
+                .execute(client);
+
+        new ContractExecuteTransaction()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("submitBid", new ContractFunctionParameters().addInt256(BigInteger.valueOf(20)))
+                .setMaxTransactionFee(new Hbar(10))
+                .execute(client);
+
+        ContractFunctionResult contractFunctionResult = new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("marketClear")
+                .setMaxQueryPayment(new Hbar(20))
+                .execute(client);
+
+        System.out.println(contractFunctionResult.getInt256(0));
+
+        ContractFunctionResult contractFunctionResultLength = new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("getLength")
+                .setMaxQueryPayment(new Hbar(10))
+                .execute(client);
+
+        System.out.println(contractFunctionResultLength.getUint256(0));
+
+        ContractFunctionResult contractFunctionResultTwo = new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("marketClearTwo")
+                .setMaxQueryPayment(new Hbar(10))
+                .execute(client);
+
+        System.out.println(contractFunctionResultTwo.getInt256(0));
+    }
+
+    public static void doubleAuction() throws IOException {
+        ClassLoader cl = HelloWorld.class.getClassLoader();
+
+        Gson gson = new Gson();
+
+        JsonObject jsonObject;
+
+        try(InputStream jsonStream = cl.getResourceAsStream("DoubleAuction.json")) {
+            if(jsonStream == null) {
+                throw new RuntimeException("Failed to get .json file");
+            }
+
+            jsonObject = gson.fromJson(new InputStreamReader(jsonStream, StandardCharsets.UTF_8), JsonObject.class);
+        }
+
+        String byteCodeHex = jsonObject.getAsJsonPrimitive("object")
+                .getAsString();
+
+        Client client = Client.forTestnet();
+
+        client.setOperator(OPERATOR_ID, OPERATOR_KEY);
     }
 
     public static void main(String[] args) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException, IOException {
+        auctionTest();
+
         ClassLoader cl = HelloWorld.class.getClassLoader();
 
         Gson gson = new Gson();
@@ -102,12 +208,11 @@ public class HelloWorld {
         System.out.println("contract bytecode file: " + fileId);
 
         TransactionResponse contractTxResponse = new ContractCreateTransaction()
-                .setGas(5000)
+                .setGas(500)
                 .setBytecodeFileId(fileId)
                 // set an admin key so we can delete the contract later
-                // .setAdminKey(OPERATOR_KEY)
+                .setAdminKey(OPERATOR_KEY)
                 .setMaxTransactionFee(new Hbar(16))
-                .setConstructorParameters(new ContractFunctionParameters().addString("Hello!"))
                 .execute(client);
 
         TransactionReceipt contractReceipt = contractTxResponse.getReceipt(client);
@@ -118,38 +223,40 @@ public class HelloWorld {
 
         System.out.println("new contract ID: " + contractId);
 
+        ContractFunctionResult contractFunctionResult = new ContractCallQuery()
+                .setGas(6000)
+                .setContractId(contractId)
+                .setFunction("bidding", new ContractFunctionParameters().addInt8((byte) 15))
+                .setMaxQueryPayment(new Hbar(1))
+                .execute(client);
 
-        /*if(contractFunctionResult.errorMessage != null) {
+        if(contractFunctionResult.errorMessage != null) {
             System.out.println("Error calling contract: " + contractFunctionResult.errorMessage);
             return;
-        }*/
+        }
 
-        // System.out.println("Contract message: " + contractFunctionResult.getInt8(0));
+        System.out.println("Contract message: " + contractFunctionResult.getInt8(0));
+
 
         Client newClient = HederaClient.makeNewClientFromExistedClient(client);
 
-        System.out.println(new ContractCallQuery()
+        ContractFunctionResult newContractFunctionResult = new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("get_message")
+                .setFunction("bidding", new ContractFunctionParameters().addInt8((byte) 5))
                 .setMaxQueryPayment(new Hbar(1))
-                .execute(newClient)
-                .getString(0));
+                .execute(client);
 
-        new ContractExecuteTransaction()
-                .setGas(6000)
-                .setContractId(contractId)
-                .setFunction("set_message",
-                        new ContractFunctionParameters().addString("Hello Again!"))
-                .execute(newClient);
+        System.out.println(newContractFunctionResult.getInt8(0));
 
         System.out.println(new ContractCallQuery()
                 .setGas(6000)
                 .setContractId(contractId)
-                .setFunction("get_message")
+                .setFunction("getResult")
                 .setMaxQueryPayment(new Hbar(1))
                 .execute(HederaClient.makeNewClientFromExistedClient(client))
-                .getString(0));
+                .getInt8(0));
+
 
 
         // Delete the contract

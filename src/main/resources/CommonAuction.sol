@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
 contract CommonAuction {
     int8[] _Prices;
@@ -23,6 +23,6 @@ contract CommonAuction {
     }
 
     function marketClearingTest() public returns(int8) {
-        return (_Prices[0] + _Prices[1]) / 2;
+        return (int8) (_Prices[0] + _Prices[1]) / 2;
     }
 }
