@@ -1,4 +1,4 @@
-pragma solidity >=0.4.19 <0.5.0;
+pragma solidity ^0.4.19;
 
 contract DoubleAuction {
 
@@ -23,13 +23,13 @@ contract DoubleAuction {
     }
 
     enum ClearType {
-        ZERO,
+        zero,
         marginal_seller,
         marginal_buyer,
         marginal_price,
         exact,
         failure,
-        NULL
+        null
     }
 
     constructor() public{
@@ -42,8 +42,8 @@ contract DoubleAuction {
     }
 
 
-    function consumptionBid(int _quantity, int _price) public {
-        if (consumptionBids[_price] == 0) {
+    function consumptionBid(int _quantity, int _price) public{
+        if(consumptionBids[_price]==0){
             _consumptionPrices.push(_price);
             consumptionBids[_price] = _quantity;
         } else {
@@ -62,10 +62,6 @@ contract DoubleAuction {
         }
 
         marketClearing();
-    }
-
-    function marketClearingTest() public pure returns(string) {
-        return "Succeed!";
     }
 
     function getPriceCap() pure private returns(int){
@@ -116,13 +112,13 @@ contract DoubleAuction {
             quickSortAscending(arr, i, right);
     }
 
-    function marketClearing() public {
-        if ((block.number - blockCleared) > 64) {
+    function marketClearing() public{
+        if ((block.number-blockCleared) > 64) {
             blockCleared = block.number;
-            if (_consumptionPrices.length > 340 || _generationPrices.length > 100) {
+            if(_consumptionPrices.length > 340 || _generationPrices.length > 100){
                 deleteMapArrays();
             }
-            else {
+            else{
                 computeClearing();
             }
         }
@@ -264,7 +260,6 @@ contract DoubleAuction {
                         }
                     }
                 }
-
                 if(clearing.clearingType == 3){
                     // needs to be just off such that it does not trigger any other bids
                     //clearing.clearingPrice = getClearingPriceType3(i, j, a, b, buy, sell);
@@ -325,7 +320,6 @@ contract DoubleAuction {
                     }
                 }
             }
-
             /* check for zero demand but non-zero first unit sell price */
             if (clearing.clearingQuantity == 0) {
                 clearing.clearingType = 6;

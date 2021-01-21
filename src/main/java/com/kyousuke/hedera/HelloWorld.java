@@ -3,6 +3,7 @@ package com.kyousuke.hedera;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.hedera.hashgraph.sdk.*;
+import com.kyousuke.hedera.files.FileService;
 import com.kyousuke.hedera.utilities.HederaAccount;
 import com.kyousuke.hedera.utilities.HederaClient;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -129,7 +130,7 @@ public class HelloWorld {
         System.out.println(contractFunctionResultTwo.getInt256(0));
     }
 
-    public static void doubleAuction() throws IOException {
+    public static void doubleAuction() throws IOException, HederaReceiptStatusException, TimeoutException, HederaPreCheckStatusException {
         ClassLoader cl = HelloWorld.class.getClassLoader();
 
         Gson gson = new Gson();
@@ -150,10 +151,35 @@ public class HelloWorld {
         Client client = Client.forTestnet();
 
         client.setOperator(OPERATOR_ID, OPERATOR_KEY);
+
+        FileService fileService = new FileService(client);
+
+        FileId fileId = fileService.createFileFromEmptyHead(byteCodeHex);
+
+        TransactionResponse contractTxResponse = new ContractCreateTransaction()
+                .setGas(5000)
+                .setBytecodeFileId(fileId)
+                // set an admin key so we can delete the contract later
+                .setAdminKey(OPERATOR_KEY)
+                .setMaxTransactionFee(new Hbar(16))
+                .execute(client);
+
+        TransactionReceipt transactionReceipt = contractTxResponse.getReceipt(client);
+
+        ContractId contractId = Objects.requireNonNull(transactionReceipt.contractId);
+
+        System.out.println(new ContractCallQuery()
+                .setFunction("marketClearingTest")
+                .setGas(1000)
+                .setMaxQueryPayment(new Hbar(5))
+                .setContractId(contractId)
+                .execute(client)
+                .getString(0));
     }
 
     public static void main(String[] args) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException, IOException {
-        auctionTest();
+        // auctionTest();
+        doubleAuction();
 
         ClassLoader cl = HelloWorld.class.getClassLoader();
 
