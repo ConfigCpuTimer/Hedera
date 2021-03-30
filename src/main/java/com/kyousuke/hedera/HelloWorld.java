@@ -4,10 +4,13 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.hedera.hashgraph.sdk.*;
 import com.kyousuke.hedera.files.FileService;
-import com.kyousuke.hedera.utilities.HederaAccount;
+import com.kyousuke.hedera.market.BuyerTradeAgent;
+import com.kyousuke.hedera.market.SellerTradeAgent;
+import com.kyousuke.hedera.market.TradeAgent;
 import com.kyousuke.hedera.utilities.HederaClient;
 import io.github.cdimascio.dotenv.Dotenv;
-import org.jetbrains.annotations.Contract;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.distribution.WeibullDistribution;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -130,6 +133,54 @@ public class HelloWorld {
         System.out.println(contractFunctionResultTwo.getInt256(0));
     }
 
+    public static void quickSortDescending(BuyerTradeAgent[] arr, int left, int right) {
+        int i = left;
+        int j = right;
+        int pivotIndex = left + (right - left) / 2;
+        BuyerTradeAgent pivot = arr[pivotIndex];
+
+        while (i <= j) {
+            while (arr[i].price.intValue() > pivot.price.intValue()) i++;
+            while (arr[j].price.intValue() < pivot.price.intValue()) j--;
+
+            if (i <= j) {
+                BuyerTradeAgent tmp = arr[i];
+                arr[i] = arr[j];
+                arr[j] = tmp;
+
+                i++;
+                j--;
+            }
+        }
+
+        if (left < j) quickSortDescending(arr, left, j);
+        if (i < right) quickSortDescending(arr, i, right);
+    }
+
+    public static void quickSortAscending(SellerTradeAgent[] arr, int left, int right) {
+        int i = left;
+        int j = right;
+        int pivotIndex = left + (right - left) / 2;
+        SellerTradeAgent pivot = arr[pivotIndex];
+
+        while (i <= j) {
+            while (arr[i].price.intValue() < pivot.price.intValue()) i++;
+            while (arr[j].price.intValue() > pivot.price.intValue()) j--;
+
+            if (i <= j) {
+                SellerTradeAgent tmp = arr[i];
+                arr[i] = arr[j];
+                arr[j] = tmp;
+
+                i++;
+                j--;
+            }
+        }
+
+        if (left < j) quickSortAscending(arr, left, j);
+        if (i < right) quickSortAscending(arr, i, right);
+    }
+
     public static void doubleAuction() throws IOException, HederaReceiptStatusException, TimeoutException, HederaPreCheckStatusException {
         ClassLoader cl = HelloWorld.class.getClassLoader();
 
@@ -151,6 +202,8 @@ public class HelloWorld {
         Client client = Client.forTestnet();
 
         client.setOperator(OPERATOR_ID, OPERATOR_KEY);
+
+        System.out.println("Operator account balance: " + new AccountBalanceQuery().setAccountId(OPERATOR_ID).execute(client).hbars);
 
         FileService fileService = new FileService(client);
 
@@ -175,10 +228,119 @@ public class HelloWorld {
                 .setContractId(contractId)
                 .execute(client)
                 .getString(0));
+
+        WeibullDistribution quantities = new WeibullDistribution(120, 200);
+        UniformRealDistribution prices = new UniformRealDistribution(500, 1000);
+//        BetaDistribution prices = new BetaDistribution(30, 30);
+
+        BuyerTradeAgent[] buyerAgents = new BuyerTradeAgent[50];
+        SellerTradeAgent[] sellerAgents = new SellerTradeAgent[50];
+
+        for (int i = 0; i < buyerAgents.length; i++) {
+            buyerAgents[i] = new BuyerTradeAgent();
+        }
+
+        for (int i = 0; i < sellerAgents.length; i++) {
+            sellerAgents[i] = new SellerTradeAgent();
+        }
+
+        quickSortDescending(buyerAgents, 0, buyerAgents.length - 1);
+        quickSortAscending(sellerAgents, 0, sellerAgents.length - 1);
+
+        System.out.println("Buyers' bids: ");
+
+        for (int i = 0; i < buyerAgents.length; i++) {
+            System.out.println(buyerAgents[i].getQuantity() + ", " + buyerAgents[i].getPrice());
+        }
+
+        System.out.println("Sellers' bids: ");
+
+        for (int i = 0; i < sellerAgents.length; i++) {
+            System.out.println(sellerAgents[i].getQuantity() + ", " + sellerAgents[i].getPrice());
+        }
+
+        for (int i = 0; i < 50; i++) {
+            for (BuyerTradeAgent x : buyerAgents) {
+                new ContractExecuteTransaction()
+                        .setFunction("consumptionBid",
+                                new ContractFunctionParameters()
+                                        .addInt256(x.getQuantity()).addInt256(x.getPrice()))
+                        .setGas(10000)
+                        .setMaxTransactionFee(new Hbar(10))
+                        .setContractId(contractId)
+                        .execute(client);
+            }
+
+            for (SellerTradeAgent x : sellerAgents) {
+                new ContractExecuteTransaction()
+                        .setFunction("generationBid",
+                                new ContractFunctionParameters()
+                                        .addInt256(x.getQuantity()).addInt256(x.getPrice()))
+                        .setGas(10000)
+                        .setMaxTransactionFee(new Hbar(10))
+                        .setContractId(contractId)
+                        .execute(client);
+            }
+
+            System.out.println("ConsumptionsLength: " + new ContractCallQuery()
+                    .setFunction("getConsumptionsLength")
+                    .setGas(1000)
+                    .setMaxQueryPayment(new Hbar(5))
+                    .setContractId(contractId)
+                    .execute(client)
+                    .getUint256(0));
+
+            System.out.println("GenerationsLength: " + new ContractCallQuery()
+                    .setFunction("getGenerationsLength")
+                    .setGas(1000)
+                    .setMaxQueryPayment(new Hbar(5))
+                    .setContractId(contractId)
+                    .execute(client)
+                    .getUint256(0));
+
+            new ContractExecuteTransaction()
+                    .setFunction("marketClearing")
+                    .setGas(299999)
+                    .setMaxTransactionFee(new Hbar(10))
+                    .setContractId(contractId)
+                    .execute(client);
+
+            int marketClearingPrice = new ContractCallQuery()
+                    .setFunction("getClearingPrice")
+                    .setGas(299999)
+                    .setMaxQueryPayment(new Hbar(5))
+                    .setContractId(contractId)
+                    .execute(client)
+                    .getInt256(0)
+                    .intValue();
+
+            int marketClearingQuantity = new ContractCallQuery()
+                    .setFunction("getClearingQuantity")
+                    .setGas(299999)
+                    .setMaxQueryPayment(new Hbar(5))
+                    .setContractId(contractId)
+                    .execute(client)
+                    .getInt256(0)
+                    .intValue();
+
+            System.out.println("Round " + i + "marketClearingPrice: " + marketClearingPrice);
+
+            System.out.println("Round " + i + "marketClearingQuantity: " + marketClearingQuantity);
+
+            for (BuyerTradeAgent x : buyerAgents) {
+                x.adjust(marketClearingPrice);
+            }
+
+            for (SellerTradeAgent x : sellerAgents) {
+                x.adjust(marketClearingPrice);
+            }
+
+            quickSortDescending(buyerAgents, 0, buyerAgents.length - 1);
+            quickSortAscending(sellerAgents, 0, sellerAgents.length - 1);
+        }
     }
 
     public static void main(String[] args) throws TimeoutException, HederaPreCheckStatusException, HederaReceiptStatusException, IOException {
-        // auctionTest();
         doubleAuction();
 
         ClassLoader cl = HelloWorld.class.getClassLoader();

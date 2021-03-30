@@ -8,7 +8,12 @@ contract DoubleAuction {
     mapping(int => int) generationBids;
     int[] _generationPrices;
     Clearing public clearing;
+
+    //    uint public dailyChecked;
+    //    uint public dailySupplied;
+
     uint public blockCleared;
+    uint public blockTimeCurrent;
 
     struct Bid {
         int quantity;
@@ -24,23 +29,31 @@ contract DoubleAuction {
 
     enum ClearType {
         ZERO,
-        marginal_seller,
-        marginal_buyer,
-        marginal_price,
-        exact,
-        failure,
+        MG_SELLER,
+        MG_BUYER,
+        MG_PRICE,
+        EXACT,
+        FAIL,
         NULL
     }
 
-    constructor() public{
+    constructor() public {
         market = msg.sender;
         blockCleared = block.number; //TODO
+        blockTimeCurrent = block.timestamp;
         clearing.clearingPrice = 0;
         clearing.clearingQuantity = 0;
         clearing.clearingType = 0;
         // clearing.clearingTime = 0;
     }
 
+    function getMaxBuyPrice() public returns(int) {
+        return _consumptionPrices[0];
+    }
+
+    function getMinSellPrice() public returns(int) {
+        return _generationPrices[0];
+    }
 
     function consumptionBid(int _quantity, int _price) public {
         if (consumptionBids[_price] == 0) {
@@ -50,7 +63,7 @@ contract DoubleAuction {
             consumptionBids[_price] = consumptionBids[_price] + _quantity;
         }
 
-        marketClearing();
+        //marketClearing();
     }
 
     function generationBid(int _quantity, int _price) public {
@@ -61,7 +74,7 @@ contract DoubleAuction {
             generationBids[_price] = generationBids[_price] + _quantity;
         }
 
-        marketClearing();
+        //marketClearing();
     }
 
     function marketClearingTest() public pure returns(string) {
@@ -73,30 +86,74 @@ contract DoubleAuction {
     }
 
     function getAvg(int a, int b) pure private returns(int){
-        return (a + b)/2;
+        return (a + b) / 2;
     }
 
     function quickSortDescending(int[] storage arr, int left, int right) internal {
-        int i = left;
+        int[] memory temp = new int[](arr.length);
+
+        for (uint index = 0; index < arr.length; index++) {
+            temp[index] = arr[index];
+        }
+
+        for (uint i = 0; i < temp.length - 1; i++) {
+            for (uint j = 0; j < temp.length - 1 - i; j++) {
+                if (temp[j] < temp[j + 1]) {
+                    int x = temp[j + 1];
+                    temp[j + 1] = temp[j];
+                    temp[j] = x;
+                }
+            }
+        }
+
+        for (index = 0; index < temp.length; index++) {
+            arr[index] = temp[index];
+        }
+
+        /*int i = left;
         int j = right;
         uint pivotIndex = uint(left + (right - left) / 2);
-        int pivot = arr[pivotIndex];
+        int pivot = temp[pivotIndex];
         while (i <= j) {
-            while (arr[uint(i)] > pivot) i++;
-            while (arr[uint(j)] < pivot) j--;
+            while (temp[uint(i)] > pivot) i++;
+            while (temp[uint(j)] < pivot) j--;
             if (i <= j) {
-                (arr[uint(i)], arr[uint(j)]) = (arr[uint(j)], arr[uint(i)]);
+                (temp[uint(i)], temp[uint(j)]) = (temp[uint(j)], temp[uint(i)]);
                 i++;
                 j--;
             }
         }
         if (left < j)
-            quickSortDescending(arr, left, j);
+            quickSortDescending(temp, left, j);
         if (i < right)
-            quickSortDescending(arr, i, right);
+            quickSortDescending(temp, i, right);*/
     }
 
     function quickSortAscending(int[] storage arr, int left, int right) internal {
+        int[] memory temp = new int[](arr.length);
+
+        for (uint index = 0; index < arr.length; index++) {
+            temp[index] = arr[index];
+        }
+
+        for (uint i = 0; i < temp.length - 1; i++) {
+            for (uint j = 0; j < temp.length - 1 - i; j++) {
+                if (temp[j] > temp[j + 1]) {
+                    int x = temp[j + 1];
+                    temp[j + 1] = temp[j];
+                    temp[j] = x;
+                }
+            }
+        }
+
+        for (index = 0; index < temp.length; index++) {
+            arr[index] = temp[index];
+        }
+
+        /*for (uint index = 0; index < temp.length; index++) {
+            arr[index] = temp[index];
+        }
+
         int i = left;
         int j = right;
         uint pivotIndex = uint(left + (right - left) / 2);
@@ -113,11 +170,11 @@ contract DoubleAuction {
         if (left < j)
             quickSortAscending(arr, left, j);
         if (i < right)
-            quickSortAscending(arr, i, right);
+            quickSortAscending(arr, i, right);*/
     }
 
     function marketClearing() public {
-        if ((block.number - blockCleared) > 64) {
+        /*if ((block.number - blockCleared) > 64) { // TODO: change the condition
             blockCleared = block.number;
             if (_consumptionPrices.length > 340 || _generationPrices.length > 100) {
                 deleteMapArrays();
@@ -125,9 +182,71 @@ contract DoubleAuction {
             else {
                 computeClearing();
             }
-        }
+        }*/
+
+        /*if ((block.timestamp - blockTimeCurrent) > 1 minutes) {
+            blockTimeCurrent = block.timestamp;
+            computeClearing();
+        }*/
+
+        simpleComputeClearing();
     }
 
+    function simpleComputeClearing() public {
+        int clearingPriceCurrrent = -1;
+        int clearedQuantityCurrent = 0;
+        int a = getPriceCap();
+        int b = -getPriceCap();
+        uint i = 0; // index of buy bids
+        uint j = 0; // index of sell bids
+
+        /*if (_consumptionPrices.length != 0) {
+            quickSortDescending(_consumptionPrices, 0, int(_consumptionPrices.length - 1));
+        }
+
+        if (_generationPrices.length != 0) {
+            quickSortAscending(_generationPrices, 0, int(_generationPrices.length - 1));
+        }*/
+
+        if (_consumptionPrices.length > 0 && _generationPrices.length > 0) {
+            Bid memory buy = Bid({
+            quantity : consumptionBids[_consumptionPrices[i]],
+            price : _consumptionPrices[i]
+            });
+
+            Bid memory sell = Bid({
+            quantity : generationBids[_generationPrices[j]],
+            price : _generationPrices[j]
+            });
+
+            while (i < _consumptionPrices.length && j < _generationPrices.length && buy.price >= sell.price) {
+                int dealQuantity = (buy.quantity >= sell.quantity) ? sell.quantity : buy.quantity;
+                clearedQuantityCurrent += dealQuantity;
+
+                i++;
+                j++;
+
+                a = buy.price;
+                b = sell.price;
+
+                clearingPriceCurrrent = buy.price;
+
+                buy.price = _consumptionPrices[i];
+                buy.quantity = consumptionBids[_consumptionPrices[i]];
+                sell.price = _generationPrices[j];
+                buy.quantity = generationBids[_generationPrices[j]];
+            }
+        }
+
+        clearing.clearingPrice = clearingPriceCurrrent;
+        clearing.clearingQuantity = clearedQuantityCurrent;
+
+        delete _consumptionPrices;
+        delete _generationPrices;
+
+        _consumptionPrices.length = 0;
+        _generationPrices.length = 0;
+    }
 
     function computeClearing() private{
         bool check = false;
@@ -141,12 +260,13 @@ contract DoubleAuction {
         uint j = 0;
 
         //sort arrays, consumer's bid descending, producer's ascending
-        if (_consumptionPrices.length != 0) {
+        /*if (_consumptionPrices.length != 0) {
             quickSortDescending(_consumptionPrices, 0, int(_consumptionPrices.length - 1));
         }
         if (_generationPrices.length != 0) {
             quickSortAscending(_generationPrices, 0, int(_generationPrices.length - 1));
-        }
+        }*/
+
         if (_consumptionPrices.length > 0 && _generationPrices.length > 0) {
             Bid memory buy = Bid({
             quantity : consumptionBids[_consumptionPrices[i]],
@@ -171,20 +291,20 @@ contract DoubleAuction {
                     a = buy.price;
                     ++j;
 
-                    if (j < _generationPrices.length) {
+                    if (j < _generationPrices.length) { // 下一个卖家订单
                         sell.price = _generationPrices[j];
                         sell.quantity = generationBids[_generationPrices[j]];
                     }
                     check = false;
                     clearing.clearingType = 2; //marginal_buyer
-                } else if (buy_quantity < sell_quantity) {
-                    demand_quantity = buy_quantity;
-                    clearing.clearingQuantity = buy_quantity;
+                } else if (buy_quantity < sell_quantity) { // 如果总购买量小于总销售量
+                    demand_quantity = buy_quantity; // 则总供给量 = 总购买量
+                    clearing.clearingQuantity = buy_quantity; // 结算量 = 总购买量
                     b = sell.price;
                     a = sell.price;
                     i++;
 
-                    if (i < _consumptionPrices.length) {
+                    if (i < _consumptionPrices.length) { // 下一个买家订单
                         buy.price = _consumptionPrices[i];
                         buy.quantity = consumptionBids[_consumptionPrices[i]];
                     }
@@ -230,9 +350,9 @@ contract DoubleAuction {
                                 clearing.clearingType = 3; // marginal_price
                             }
                         } else if (i == _consumptionPrices.length && b == sell.price) {// exhausted buyers, sellers unsatisfied at same price
-                            clearing.clearingType = 1;
+                            clearing.clearingType = 1; // marginal_seller
                         } else if (j == _generationPrices.length && a == buy.price) {// exhausted sellers, buyers unsatisfied at same price
-                            clearing.clearingType = 2;
+                            clearing.clearingType = 2; // marginal_buyer
                         } else { // both sides satisfied at price, but one side exhausted
                             if(a == b){
                                 clearing.clearingType = 4;
@@ -240,7 +360,7 @@ contract DoubleAuction {
                                 clearing.clearingType = 3;
                             }
                         }
-                    }else {
+                    } else {
                         if(a != buy.price && b != sell.price && a == b){
                             clearing.clearingType = 4; // price changed in both directions
                         } else if (a == buy.price && b != sell.price){
